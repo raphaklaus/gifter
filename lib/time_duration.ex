@@ -1,6 +1,7 @@
-defmodule TimeDuration do
+defmodule Gifter.TimeDuration do
   def convert(time_duration) do
     time_duration
+    |> String.slice(2..-1)
     |> String.graphemes()
     |> Enum.map(&convert_integers/1)
     |> Enum.reduce(%{total: 0, sub_total: ""}, fn character, acc ->

@@ -1,11 +1,11 @@
 defmodule Gifter do
-  @moduledoc """
-  Documentation for Gifter.
-  """
+  alias Gifter.TimeDuration
+  def http_adapter, do: Application.get_env(:gifter, :http_adapter)
 
   def convert(url, start_time, end_time) do
     with :ok <- check_youtube(url),
-      :ok <- check_time(start_time, end_time) do
+      :ok <- check_time(start_time, end_time),
+      :ok <- correct_duration(url, start_time, end_time) do
       {:enqueued, 1}
     else
       error -> error
@@ -33,11 +33,31 @@ defmodule Gifter do
   end
 
   defp correct_duration(url, start_time, end_time) do
-    case HTTPoison.get(url, %{}, [{}]) do
+    with duration_string when is_bitstring(duration_string) <- get_video_duration(url),
+      {:ok, duration} <- Gifter.TimeDuration.convert(duration_string),
+      :ok <- is_inside_interval(duration, start_time, end_time) do
+      :ok
+    else
+      error ->
+        error
+    end
+  end
+
+  defp is_inside_interval(duration, start_time, end_time) do
+    case start_time in 0..duration and end_time in 0..duration do
+      true -> :ok
+      _ -> :time_error
+    end
+  end
+
+  defp get_video_duration(url) do
+    case http_adapter().get(url, %{}, []) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
-        result = Poison.decode!(body)
+        {:ok, result} = Poison.Parser.parse(body, %{keys: :atoms})
         [first | _] = result.items
         first.contentDetails.duration
+      _ ->
+        :error
     end
   end
 

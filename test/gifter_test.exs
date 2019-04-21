@@ -1,21 +1,24 @@
 defmodule GifterTest do
   use ExUnit.Case
+  import Mox
   doctest Gifter
 
-  @gif_binary "tbd"
+  setup :verify_on_exit!
 
-  @youtube_video_details_response %{
+  # @gif_binary "tbd"
+
+  @youtube_video_details_response ~s({
     "kind": "youtube#videoListResponse",
-    "etag": "\"XpPGqXPfxQJhLgs6en2_n8JR4Qk/ZSocz3fb91hlCSp196j-4z9s22F\"",
-    "pageInfo": %{
+    "etag": "\\\"XpPGqXPfxQJhLgs6en2_n8JR4Qk/ZSocz3fb91hlCSp196j-4z9s22F\\\"",
+    "pageInfo": {
     "totalResults": 1,
     "resultsPerPage": 1
     },
-    "items": [%{
+    "items": [{
       "kind": "youtube#video",
-      "etag": "\"XpPGqXPfxQJhLgs6en2_n8JR4Qk/ZSocz3fb91hlCSp196j-4z9s22F\"",
+      "etag": "\\\"XpPGqXPfxQJhLgs6en2_n8JR4Qk/ZSocz3fb91hlCSp196j-4z9s22F\\\"",
       "id": "1",
-      "contentDetails": %{
+      "contentDetails": {
         "duration": "PT1M2S",
         "dimension": "2d",
         "definition": "sd",
@@ -24,7 +27,16 @@ defmodule GifterTest do
         "projection": "rectangular"
       }
     }]
-}
+  })
+
+  setup do
+    Gifter.HTTPMock
+    |> stub(:get, fn _url, _body, _headers ->
+      {:ok, %HTTPoison.Response{status_code: 200, body: @youtube_video_details_response}}
+    end)
+
+    :ok
+  end
 
   describe "basic validations" do
     test "it should return an error for non-youtube video sources" do
@@ -65,28 +77,36 @@ defmodule GifterTest do
       assert :time_error == Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", -15, -16)
     end
 
-    # test "it should return error if start or end is greater than clip's duration" do
-    #   assert :time_error == Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", 300, 302)
-    #   assert :time_error == Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", 300, 304)
-    # end
+    test "it should return error if start or end is greater than clip's duration" do
+      assert :time_error == Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", 300, 302)
+      assert :time_error == Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", 300, 304)
+    end
   end
 
-  # describe "external problems" do
-  #   test "it should present an error if YouTube API's quota is over" do
-  #     assert :quota_over ==  Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", 0, 4)
-  #   end
+  describe "external problems" do
+    @tag :skip
+    test "it should present an error if YouTube API's quota is over" do
+      assert :quota_over ==  Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", 0, 4)
+    end
 
-  #   test "it should present an error if YouTube API's is not responding" do
-  #     assert :youtube_timeout ==  Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", 0, 4)
-  #   end
-  # end
+    @tag :skip
+    test "it should present an error if YouTube API's is not responding" do
+      assert :youtube_timeout ==  Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", 0, 4)
+    end
+  end
 
-  # describe "video to gif" do
-  #   test "it should enqueue correctly the request, process it and send an email" do
-  #     assert {:enqueued, id} == Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", 0, 5)
-  #     assert_received :"sent_to_consumer_#{id}"
-  #     assert_received {:"done_#{id}", <<71, 73, 70, data :: binary>>}
-  #     assert_received :"email_sent_#{id}"
-  #   end
-  # end
+  describe "video to gif" do
+    @tag :skip
+    test "it should enqueue correctly the request, process it and send an email" do
+      assert {:enqueued, id} = Gifter.convert("https://www.youtube.com/watch?v=1qaMTmNOVW4", 0, 5)
+
+      sent_event = :"sent_to_consumer_#{id}"
+      done_event = :"done_#{id}"
+      email_sent_event = :"email_sent_#{id}"
+
+      assert_received sent_event
+      assert_received {done_event, <<71, 73, 70, data :: binary>>}
+      assert_received email_sent_event
+    end
+  end
 end
